@@ -34,6 +34,7 @@ tokens = model.to_tokens(prompts, prepend_bos=True)
 seq_len = tokens.shape[1]
 torch.manual_seed(1)
 ablation_parameters = torch.rand((n_layers, 1, seq_len, n_heads, 1)) / 10
+ablation_parameters = torch.rand((n_layers, 1, 1, n_heads, 1)) / 10
 print(ablation_parameters.shape)
 ablation_parameters.requires_grad = True
 
@@ -120,7 +121,7 @@ ablated_loss = patched_model(tokens, return_type="loss")
 
 optimizer = torch.optim.SGD([ablation_parameters], lr=0.04, momentum=0.9)
 torch.set_printoptions(sci_mode=False, linewidth=120, precision=3)
-for i in range(500):
+for i in range(100):
     # original_logits = model(tokens, return_type="logits")
     corrupted_logits = model(corrupted_tokens, return_type="logits")
     ablated_logits = patched_model(tokens, return_type="logits")
@@ -171,9 +172,7 @@ def show_prompt_differences(patched_model, model):
 
 
 
-def top_k_next_tokens(patched_model, model, prompt):
-    prompts, corrupted_prompts, answers, answer_tokens, corrupted_tokens = ioi_prompts.prompts(model)
-    corrupted_logits, corrupted_activations = model.run_with_cache(corrupted_tokens, return_type="logits")
+def top_k_next_tokens(patched_model, model, prompts):
     tokens = model.to_tokens(prompts, prepend_bos=True)
     ablated_logits = patched_model(tokens)
     for i in range(len(prompts)):
@@ -182,13 +181,8 @@ def top_k_next_tokens(patched_model, model, prompt):
         tokens = model.to_tokens(prompt, prepend_bos=True)
         original_logits = model(tokens, return_type="logits")
         print(f"\nPrompt: {prompt}")
-        print(f"Answers: {answers[i]}")
         p_original = F.softmax(original_logits[:, -1, :], dim=-1)
-        p_answers_original = [p_original[0, answer_tokens[i, 0]], p_original[0, answer_tokens[i, 1]]] 
         p_ablated = F.softmax(prompt_ablated_logits[:, -1, :], dim=-1)
-        p_answers_ablated = [p_ablated[0, answer_tokens[i, 0]], p_ablated[0, answer_tokens[i, 1]]]
-        print(f"Answer \"{answers[i][0]}\" original_prob: {p_answers_original[0].item()}, ablated_prob: {p_answers_ablated[0].item()}")
-        print(f"Answer \"{answers[i][1]}\" original_prob: {p_answers_original[1].item()}, ablated_prob: {p_answers_ablated[1].item()}")
         top_token_original = torch.argmax(original_logits[:, -1, :], dim=-1)
         top_token_ablated = torch.argmax(prompt_ablated_logits[:, -1, :], dim=-1)
         print(f"Top token original: {model.tokenizer.decode(top_token_original.item())}, ablated: {model.tokenizer.decode(top_token_ablated.item())}")
@@ -216,5 +210,36 @@ show_prompt_differences(binary_patched_model, model)
 torch.save(ablation_parameters, "ablation_parameters.pt")
 print(sum(make_ablations_binary(ablation_parameters).flatten()))
 
+null_patched_model = create_ablation_model(model, torch.zeros_like(ablation_parameters), patching_value_mutator)
+show_prompt_differences(null_patched_model, model)
+
+
 prom1tps = "After Martin and Amy went to the park,{} gave a drink to"
+
+def print_heads_copied(ablation_parameters):
+    if ablation_parameters.shape[2] == 1:    
+        for layer in range(n_layers):
+            for head in range(n_heads):
+                if ablation_parameters[layer, 0, 0, head, 0] > 0.5:
+                    print(f"Layer {layer} head {head} patched")
+    else:
+        for pos in range(ablation_parameters.shape[2]):
+            for layer in range(n_layers):
+                for head in range(n_heads):
+                    if ablation_parameters[layer, 0, pos, head, 0] > 0.5:
+                        print(f"Layer {layer} head {head} patched at token {pos}")
+
+print_heads_copied(ablation_parameters)
+
+def test_ablation_parameters(ablation_parameters, model, patching_value_mutator, custom=False):
+    test_string = "After Kat and Carl went to the bar, Carl gave a ball to"
+    test_string2 = "After Kat and Carl went to the bar, Kat gave a ball to"
+    prompts = [test_string, test_string2] * 4
+    patched_model = create_ablation_model(model, make_ablations_binary(ablation_parameters), patching_value_mutator)
+    top_k_next_tokens(patched_model, model, prompts)
+    top_k_next_tokens(patched_model, model, prompts[1:-1])
+
+test_ablation_parameters(ablation_parameters, model, patching_value_mutator)
+while True:
+    test_ablation_parameters(ablation_parameters, model, patching_value_mutator, custom=True)
 
