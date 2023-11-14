@@ -6,9 +6,11 @@ import torch.nn.functional as F
 from torch.autograd import Function
 from jaxtyping import Float
 import transformer_lens.utils as utils
-import ioi_prompts
+import ioi_prompts  
 # Load a model (eg GPT-2 Small)
 model = transformer_lens.HookedTransformer.from_pretrained("gpt2-small")
+
+#TODO clean up all of the unwrapped closures by wrapping them, and then move all of the top level state code into main()
 
 # Run the model and get logits and activations
 logits, activations = model.run_with_cache("Hello World")
@@ -32,7 +34,7 @@ n_heads = model.cfg.n_heads
 prompts, corrupted_prompts, answers, answer_tokens, corrupted_tokens = ioi_prompts.prompts(model)
 tokens = model.to_tokens(prompts, prepend_bos=True)
 seq_len = tokens.shape[1]
-torch.manual_seed(1)
+torch.manual_seed(2)
 ablation_parameters = torch.rand((n_layers, 1, seq_len, n_heads, 1)) / 10
 ablation_parameters = torch.rand((n_layers, 1, 1, n_heads, 1)) / 10
 print(ablation_parameters.shape)
@@ -210,8 +212,8 @@ show_prompt_differences(binary_patched_model, model)
 torch.save(ablation_parameters, "ablation_parameters.pt")
 print(sum(make_ablations_binary(ablation_parameters).flatten()))
 
-null_patched_model = create_ablation_model(model, torch.zeros_like(ablation_parameters), patching_value_mutator)
-show_prompt_differences(null_patched_model, model)
+# null_patched_model = create_ablation_model(model, torch.zeros_like(ablation_parameters), patching_value_mutator)
+# show_prompt_differences(null_patched_model, model)
 
 
 prom1tps = "After Martin and Amy went to the park,{} gave a drink to"
@@ -239,7 +241,7 @@ def test_ablation_parameters(ablation_parameters, model, patching_value_mutator,
     top_k_next_tokens(patched_model, model, prompts)
     top_k_next_tokens(patched_model, model, prompts[1:-1])
 
-test_ablation_parameters(ablation_parameters, model, patching_value_mutator)
-while True:
-    test_ablation_parameters(ablation_parameters, model, patching_value_mutator, custom=True)
+# test_ablation_parameters(ablation_parameters, model, patching_value_mutator)
+# while True:
+    # test_ablation_parameters(ablation_parameters, model, patching_value_mutator, custom=True)
 
