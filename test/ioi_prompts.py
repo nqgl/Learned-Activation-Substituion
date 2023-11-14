@@ -1,4 +1,17 @@
 import torch
+prompt_format = [
+    "When John and Mary went to the shops,{} gave the bag to",
+    "When Tom and James went to the park,{} gave the ball to",
+    "When Dan and Sid went to the shops,{} gave an apple to",
+    "After Martin and Amy went to the park,{} gave a drink to",
+]
+names = [
+    (" Mary", " John"),
+    (" Tom", " James"),
+    (" Dan", " Sid"),
+    (" Martin", " Amy"),
+]
+
 def prompts(model):
     prompt_format = [
         "When John and Mary went to the shops,{} gave the bag to",
@@ -37,7 +50,7 @@ def prompts(model):
         corrupted_prompts.append(prompts[i + 1])
         corrupted_prompts.append(prompts[i])
     corrupted_tokens = model.to_tokens(corrupted_prompts, prepend_bos=True)
-    corrupted_logits, corrupted_cache = model.run_with_cache(
-        corrupted_tokens, return_type="logits"
-    )
-
+    # corrupted_logits, corrupted_cache = model.run_with_cache(
+    #     corrupted_tokens, return_type="logits"
+    # )
+    return prompts, corrupted_prompts, answers, answer_tokens, corrupted_tokens
